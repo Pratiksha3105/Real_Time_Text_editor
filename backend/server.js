@@ -1,5 +1,5 @@
 /**
- * CollabFlow - Backend Server (FINAL FIXED)
+ * CollabFlow - Backend Server (FINAL WORKING)
  */
 
 require('dotenv').config();
@@ -28,12 +28,11 @@ const logger = require('./utils/logger');
 const app = express();
 const server = http.createServer(app);
 
-// ─── ✅ FINAL CORS FIX ────────────────────────────────────────────────
+// ─── ✅ FINAL CORS FIX (IMPORTANT) ────────────────────────────────────
 
-app.use(cors({
-  origin: "*", // allow all origins
-  methods: ["GET", "POST", "PUT", "DELETE"],
-}));
+// Allow all origins + handle preflight
+app.use(cors());
+app.options('*', cors());
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────
 
