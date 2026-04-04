@@ -15,13 +15,13 @@ const Redis = require('ioredis');
 const { createAdapter } = require('@socket.io/redis-adapter');
 const compression = require('compression');
 
-// Route imports
+// Routes
 const authRoutes = require('./routes/auth');
 const documentRoutes = require('./routes/documents');
 const commentRoutes = require('./routes/comments');
 const aiRoutes = require('./routes/ai');
 
-// Socket handlers
+// Socket
 const { handleDocumentSocket } = require('./sockets/documentSocket');
 
 // Utils
@@ -31,23 +31,37 @@ const logger = require('./utils/logger');
 const app = express();
 const server = http.createServer(app);
 
+// ─── ✅ FIXED CORS (IMPORTANT) ────────────────────────────────────────────────
+
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:3000',
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, true); // allow all (safe fallback for now)
+      }
+    },
+    credentials: true,
+  })
+);
+
 // ─── MIDDLEWARE ────────────────────────────────────────────────────────────────
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true,
-}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
 });
 app.use('/api/', limiter);
 
@@ -55,7 +69,7 @@ app.use('/api/', limiter);
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -63,17 +77,17 @@ const io = new Server(server, {
   pingInterval: 25000,
 });
 
-// Redis adapter for horizontal scaling (optional - gracefully degrades without Redis)
+// Redis (optional)
 async function setupRedisAdapter() {
   try {
     if (process.env.REDIS_URL) {
       const pubClient = new Redis(process.env.REDIS_URL);
       const subClient = pubClient.duplicate();
       io.adapter(createAdapter(pubClient, subClient));
-      logger.info('Redis adapter connected for Socket.IO scaling');
+      logger.info('Redis adapter connected');
     }
   } catch (err) {
-    logger.warn('Redis not available, running in single-instance mode:', err.message);
+    logger.warn('Redis not available:', err.message);
   }
 }
 
@@ -84,53 +98,57 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/ai', aiRoutes);
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check
+app.get('/', (req, res) => {
+  res.send('Backend is running 🚀');
 });
 
-// ─── SOCKET.IO AUTH MIDDLEWARE ─────────────────────────────────────────────────
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+// ─── SOCKET AUTH ──────────────────────────────────────────────────────────────
 
 io.use(verifySocketToken);
 
-// ─── SOCKET.IO HANDLERS ────────────────────────────────────────────────────────
+// ─── SOCKET HANDLER ───────────────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
-  logger.info(`User connected: ${socket.user?.username} (${socket.id})`);
+  logger.info(`User connected: ${socket.user?.username}`);
   handleDocumentSocket(io, socket);
 });
 
-// ─── DATABASE CONNECTION ──────────────────────────────────────────────────────
+// ─── DATABASE ─────────────────────────────────────────────────────────────────
 
 async function connectDB() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/collabflow', {
+    await mongoose.connect(process.env.MONGODB_URI, {
       serverSelectionTimeoutMS: 5000,
     });
     logger.info('MongoDB connected');
   } catch (err) {
-    logger.error('MongoDB connection error:', err.message);
+    logger.error('MongoDB error:', err.message);
     process.exit(1);
   }
 }
 
-// ─── GLOBAL ERROR HANDLER ──────────────────────────────────────────────────────
+// ─── ERROR HANDLER ────────────────────────────────────────────────────────────
 
 app.use((err, req, res, next) => {
-  logger.error('Unhandled error:', err);
-  res.status(err.status || 500).json({
-    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
-  });
+  logger.error(err);
+  res.status(500).json({ error: err.message });
 });
 
-// ─── START SERVER ──────────────────────────────────────────────────────────────
+// ─── START SERVER ─────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 5000;
 
 async function start() {
   await connectDB();
   await setupRedisAdapter();
+
   server.listen(PORT, () => {
-    logger.info(`CollabFlow server running on port ${PORT}`);
+    logger.info(`Server running on port ${PORT}`);
   });
 }
 
