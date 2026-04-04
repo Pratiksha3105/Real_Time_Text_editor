@@ -34,19 +34,12 @@ const server = http.createServer(app);
 // ─── ✅ FIXED CORS (IMPORTANT) ────────────────────────────────────────────────
 
 const allowedOrigins = [
-  process.env.FRONTEND_URL,
   'http://localhost:3000',
 ];
 
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(null, true); // allow all (safe fallback for now)
-      }
-    },
+    origin: true,
     credentials: true,
   })
 );
@@ -69,7 +62,7 @@ app.use('/api/', limiter);
 
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: "*",
     methods: ['GET', 'POST'],
     credentials: true,
   },
