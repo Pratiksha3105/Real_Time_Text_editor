@@ -379,6 +379,4 @@ REDIS_URL=rediss://:password@endpoint.upstash.io:6380
 
 ---
 
-## 📜 License
 
-MIT — Build something amazing.
