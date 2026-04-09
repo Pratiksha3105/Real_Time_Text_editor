@@ -36,7 +36,7 @@ const server = http.createServer(app);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: process.env.FRONTEND_URL || 'https://real-time-text-editor-jet.vercel.app',
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
